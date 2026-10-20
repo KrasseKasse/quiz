@@ -1,6 +1,6 @@
 
 window.SKALA_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBnAa_xtMeUdcTIMzNIpFDfp1RCAPWdbTo",
+  apiKey: "AIzaSyBnAa_xtMeUdcTIMzNIpFDfplRCAPWdbTo",
   authDomain: "skala-8dd6a.firebaseapp.com",
   databaseURL: "https://skala-8dd6a-default-rtdb.firebaseio.com",
   projectId: "skala-8dd6a",
