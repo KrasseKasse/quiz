@@ -73,7 +73,8 @@ const state = {
   mode: 'home', room: null, code: '', me: '', demoActor: 'demo1',
   demoSecrets: {}, privateValue: null, privateRoundId: '',
   loadedSecretFor: '', selectedGuess: null, unsubscribe: null,
-  pending: false, timer: null, scheduledRound: '', onlineClient: null
+  pending: false, timer: null, scheduledRound: '', onlineClient: null,
+  rescueTimer: null, rescueRoundId: ''
 };
 let toastTimer;
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -161,7 +162,7 @@ function game() {
       inner=`<div class="stage-label">DAS ANDERE TEAM RÄT</div><h2>Die Köpfe rauchen!</h2><p class="sub">${addRoundClass(turn.team)} ist am Zug. Ihr seht den Hinweis nach der Auflösung.</p><span class="status-bubble">Team berät sich<span class="waiting-dots"></span></span>`;
     }
   } else {
-    inner=`<div class="stage-label">TIPP ABGEGEBEN</div><h2>Die Auflösung kommt!</h2><div class="answer-word">„${esc(turn.clue)}“</div><p class="sub">${addRoundClass(turn.team)} hat <strong>${turn.guess}</strong> getippt.</p><span class="status-bubble">${chooserMe?'Du deckst jetzt deine Zahl auf.':'Warte auf den Hinweisgeber'}<span class="waiting-dots"></span></span>`;
+    inner=`<div class="stage-label">TIPP ABGEGEBEN</div><h2>Die Auflösung kommt!</h2><div class="answer-word">„${esc(turn.clue)}“</div><p class="sub">${addRoundClass(turn.team)} hat <strong>${turn.guess}</strong> getippt.</p><span class="status-bubble">Die Zahl wird aufgedeckt<span class="waiting-dots"></span></span>${isHost() && state.mode==='online'?'<div style="margin-top:16px"><button class="ghost" data-action="rescue-round">Falls es hängt: Runde jetzt auflösen</button></div>':''}`;
   }
   const history = Object.values(room.history||{}).sort((a,b)=>b.index-a.index).slice(0,5);
   wrap(`${state.mode==='demo'?demoController():''}<div class="game-layout"><div class="room-top" style="margin-bottom:17px"><div><div class="eyebrow" style="margin-bottom:7px">DAS SPIEL LÄUFT</div><h1 class="room-heading">Zahl oder Zufall?</h1></div><div class="roomcode"><span class="codeword">${esc(state.code)}</span><button class="ghost" data-action="copy">⧉</button></div></div>
@@ -174,6 +175,13 @@ function game() {
   if(isHost() && done && state.scheduledRound !== turn.id) {
     clearTimeout(state.timer); state.scheduledRound=turn.id;
     state.timer=setTimeout(()=>{if(state.room?.status==='playing' && state.room?.turn?.id===turn.id && isHost()) guarded(()=>advanceRound());},12000);
+  }
+  // Fallback: Nachdem das Team geraten hat, darf der Host die Zahl sicher aus Firebase
+  // lesen und die Runde auflösen. Vor der Abgabe ist das per Datenbank-Regel verboten.
+  if (state.mode==='online' && isHost() && hasGuess && !done && state.rescueRoundId!==turn.id) {
+    state.rescueRoundId=turn.id;
+    clearTimeout(state.rescueTimer);
+    state.rescueTimer=setTimeout(()=>void rescueRound(turn.id),3000);
   }
 }
 function finished() {
@@ -202,7 +210,7 @@ function makeTurn(room,index,prevCategory) {
   return { id:`r${index}`,index,team,chooserId:player.id,categoryId:pickCategory(room,prevCategory),startedAt:Date.now() };
 }
 function shuffle(list) {const a=[...list];for(let i=a.length-1;i>0;i--){const j=crypto.getRandomValues(new Uint32Array(1))[0]%(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
-function clearRoundUi() {state.privateRoundId='';state.privateValue=null;state.loadedSecretFor='';state.selectedGuess=null;state.scheduledRound='';clearTimeout(state.timer);}
+function clearRoundUi() {state.privateRoundId='';state.privateValue=null;state.loadedSecretFor='';state.selectedGuess=null;state.scheduledRound='';clearTimeout(state.timer);clearTimeout(state.rescueTimer);state.rescueTimer=null;state.rescueRoundId='';}
 function assignTeams(room) {
   const players=shuffle(roomPlayers(room));let r=0,b=0;
   for(let i=0;i<players.length;i++){const p=players[i];const team=i%2?'blue':'red';p.team=team;p.slot=team==='red'?r++:b++;}
@@ -263,6 +271,33 @@ function syncPrivateDemo(){
   if(Number.isInteger(t.guess)&&!Number.isInteger(t.target)){t.target=state.demoSecrets[t.id];}
   render();
 }
+async function rescueRound(roundId) {
+  // This fallback never starts or changes a round. It only completes a submitted guess.
+  const room=state.room;
+  if(state.mode!=='online'||!isHost()||room?.status!=='playing'||room.turn?.id!==roundId ||
+     !Number.isInteger(room.turn.guess)||Number.isInteger(room.turn.target))return;
+  const {db,sdk}=state.onlineClient;
+  const turnRef=sdk.ref(db,`rooms/${state.code}/turn`);
+  try {
+    const secretSnapshot=await sdk.get(sdk.ref(db,`secrets/${state.code}/${roundId}`));
+    const number=secretSnapshot.val()?.number;
+    if(!Number.isInteger(number)) {
+      showToast('Die geheime Zahl fehlt. Der Hinweisgeber muss die Seite neu laden.');
+      return;
+    }
+    const fresh=(await sdk.get(turnRef)).val();
+    if(fresh?.id!==roundId||!Number.isInteger(fresh.guess)||Number.isInteger(fresh.target))return;
+    await sdk.set(sdk.ref(db,`rooms/${state.code}/turn/target`),number);
+  } catch(e) {
+    // If the clue giver revealed the number at the same time, that is NOT an error.
+    try {
+      const latest=(await sdk.get(turnRef)).val();
+      if(latest?.id!==roundId || Number.isInteger(latest?.target))return;
+    }catch(_ignored){}
+    console.error('Rundenauflösung fehlgeschlagen:',e);
+    showToast('Auflösen fehlgeschlagen: '+errMessage(e));
+  }
+}
 async function syncPrivateOnline(){
   const t=state.room?.turn;if(state.mode!=='online'||!t||state.room.status!=='playing'||!isChooser()||Number.isInteger(t.target))return;
   const {db,sdk}=state.onlineClient;
@@ -270,10 +305,15 @@ async function syncPrivateOnline(){
     state.loadedSecretFor=t.id;state.privateValue=null;state.privateRoundId='';
     try {
       const secretRef=sdk.ref(db,`secrets/${state.code}/${t.id}`);
-      const result=await sdk.runTransaction(secretRef,current=>current??{chooserId:state.me,number:randomNumber()}, {applyLocally:false});
-      if(!result.committed && !result.snapshot.exists())throw new Error('Die geheime Zahl konnte nicht erstellt werden.');
+      const existing=await sdk.get(secretRef);
+      let secret=existing.val();
+      if(!existing.exists()){
+        const result=await sdk.runTransaction(secretRef,current=>current===null?{chooserId:state.me,number:randomNumber()}:undefined, {applyLocally:false});
+        secret=result.snapshot.val();
+      }
+      if(!Number.isInteger(secret?.number))throw new Error('Die geheime Zahl konnte nicht geladen werden.');
       if(state.room?.turn?.id!==t.id)return;
-      state.privateValue=result.snapshot.val()?.number;
+      state.privateValue=secret.number;
       state.privateRoundId=t.id;
       render();
     } catch (e) {state.loadedSecretFor='';showToast('Geheime Zahl: '+errMessage(e));return;}
@@ -320,7 +360,7 @@ async function joinOnline(name,code){
   state.room=null;attachRoom(code,client);
 }
 function leaveRoom(){
-  clearTimeout(state.timer);if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}
+  clearRoundUi();clearTimeout(state.timer);if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}
   state.mode='home';state.room=null;state.me='';state.code='';state.privateValue=null;state.privateRoundId='';state.loadedSecretFor='';
   localStorage.removeItem('skala_room');history.replaceState(null,'',location.pathname);render();
 }
@@ -365,6 +405,7 @@ app.addEventListener('click',event=>{
   if(action==='remove-cat'){void guarded(()=>removeCategory(button.dataset.id));return;}
   if(action==='start'){void guarded(startGame);return;}
   if(action==='next'){void guarded(advanceRound);return;}
+  if(action==='rescue-round'){const id=state.room?.turn?.id;if(id)void rescueRound(id);return;}
   if(action==='end'){if(confirm('Spiel wirklich beenden?'))void guarded(endGame);return;}
   if(action==='again'){void guarded(again);return;}
 });
