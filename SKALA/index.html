@@ -74,7 +74,7 @@ const state = {
   demoSecrets: {}, privateValue: null, privateRoundId: '',
   loadedSecretFor: '', selectedGuess: null, unsubscribe: null,
   pending: false, timer: null, scheduledRound: '', onlineClient: null,
-  rescueTimer: null, rescueRoundId: ''
+  rescueTimer: null, rescueRoundId: '', secretError: '', secretStartedAt: 0, secretTimer: null, secretToken: 0, secretRetryCount: 0
 };
 let toastTimer;
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -149,7 +149,7 @@ function game() {
     inner=`<div class="stage-label">AUFLÖSUNG</div><h2>Und die Zahl war …</h2><div class="answer-word">„${esc(turn.clue)}“</div><div class="reveal-grid"><div class="result-box target"><div class="n">${turn.target}</div><p>Die geheime Zahl</p></div><div class="result-box"><div class="n">${turn.guess}</div><p>Team-Tipp</p></div></div><div class="points-burst">${pts?`✦ +${pts} ${pts===1?'Punkt':'Punkte'} für ${turn.team==='red'?'Rot':'Blau'}!`:'✦ Diesmal leider 0 Punkte'}</div><p class="sub">${pts===3?'Volltreffer! 🎯':pts===2?'Nur 1 daneben – richtig gut!':pts===1?'Nur 2 daneben – immerhin!':'Nächstes Mal klappt’s bestimmt.'}</p>${isHost()?`<button class="btn" data-action="next" style="margin-top:19px">${room.roundLimit>0&&turn.index>=room.roundLimit?'Ergebnis anzeigen':'Nächste Runde →'}</button>`:'<span class="status-bubble">Warte auf die nächste Runde <span class="waiting-dots"></span></span>'}`;
   } else if (!hasClue) {
     if (chooserMe) {
-      inner=`<div class="stage-label">DU BIST DER HINWEISGEBER</div><h2>Finde das perfekte Beispiel!</h2><div class="sub">Nur du siehst deine geheime Zahl.</div>${Number.isInteger(state.privateValue) && state.privateRoundId===turn.id?`<div class="big-number">${state.privateValue}</div><p class="sub">Überlege: Was passt in dieser Kategorie zu einer <strong style="color:var(--gold)">${state.privateValue}/10</strong>?</p><form id="clue-form" class="input-row"><input id="clue-input" minlength="1" maxlength="55" required autofocus placeholder="Dein Begriff oder Beispiel" autocomplete="off"/><button class="btn" type="submit">Hinweis senden →</button></form>`:'<div class="status-bubble">Geheime Zahl wird geladen<span class="waiting-dots"></span></div>'}`;
+      inner=`<div class="stage-label">DU BIST DER HINWEISGEBER</div><h2>Finde das perfekte Beispiel!</h2><div class="sub">Nur du siehst deine geheime Zahl.</div>${Number.isInteger(state.privateValue) && state.privateRoundId===turn.id?`<div class="big-number">${state.privateValue}</div><p class="sub">Überlege: Was passt in dieser Kategorie zu einer <strong style="color:var(--gold)">${state.privateValue}/10</strong>?</p><form id="clue-form" class="input-row"><input id="clue-input" minlength="1" maxlength="55" required autofocus placeholder="Dein Begriff oder Beispiel" autocomplete="off"/><button class="btn" type="submit">Hinweis senden →</button></form>`:`<div class="status-bubble">${state.secretError?esc(state.secretError):'Geheime Zahl wird geladen …'}</div><div style="margin-top:16px"><button class="ghost" data-action="retry-secret">Zahl erneut laden ↻</button></div>`}`;
     } else {
       inner=`<div class="stage-label">HINWEIS WIRD GESUCHT</div><h2>${esc(chooser?.name||'Ein Spieler')} ist am Zug</h2><p class="sub">${active?'Gleich bekommst du einen Begriff. Überlege dann, welche Zahl dazu passt.':'Das andere Team ist an der Reihe. Gleich geht’s weiter.'}</p><span class="status-bubble">Warten auf den Hinweis<span class="waiting-dots"></span></span>`;
     }
@@ -169,7 +169,7 @@ function game() {
   <div class="scoreboard"><div class="score red"><div class="pts">${score.red}</div><div class="teammeta">🔴 TEAM ROT<br>${teamPlayers(room,'red').length} Spieler</div></div><div class="versus">VS</div><div class="score blue"><div class="pts">${score.blue}</div><div class="teammeta">🔵 TEAM BLAU<br>${teamPlayers(room,'blue').length} Spieler</div></div></div>
   <div class="turnline"><div class="round">Runde ${turn.index}${room.roundLimit?` / ${room.roundLimit}`:''} · <span style="color:${teamColor}">${addRoundClass(turn.team)}</span></div><div class="turn-person">Am Zug: <strong>${esc(chooser?.name||'Unbekannt')}</strong></div></div>
   <section class="panel stage"><div class="stage-label">DIE KATEGORIE</div><h2>${esc(cat.name)}</h2><div class="spectrum"><div class="spectrum-bar"></div><div class="spectrum-ends"><span>1 · ${esc(cat.low)}</span><span>10 · ${esc(cat.high)}</span></div></div><div class="separator"></div>${inner}</section>
-  <div class="game-footer"><div class="note">🎯 Exakt richtig: <strong>3 Punkte</strong> · ±1: <strong>2</strong> · ±2: <strong>1</strong> · Sonst: 0<br>Reihenfolge: Rot 1 → Blau 1 → Rot 2 → Blau 2 → …</div>${isHost()?`<button data-action="end" class="ghost">Spiel beenden</button>`:''}</div>
+  <div class="game-footer"><div class="note">🎯 Exakt richtig: <strong>3 Punkte</strong> · ±1: <strong>2</strong> · ±2: <strong>1</strong> · Sonst: 0<br>Reihenfolge: Rot 1 → Blau 1 → Rot 2 → Blau 2 → …</div>${isHost()?`<div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end">${!hasClue?'<button data-action="skip-broken" class="ghost">Hängende Runde überspringen ↪</button>':''}<button data-action="end" class="ghost">Spiel beenden</button></div>`:''}</div>
   ${history.length?`<section class="history"><h3>Letzte Runden</h3><div class="history-items">${history.map(t=>`<div class="history-item"><div class="num">#${t.index}</div><div>${t.team==='red'?'🔴':'🔵'} <strong>${esc(t.clue)}</strong> · ${esc(room.categories?.[t.categoryId]?.name||'Kategorie')}</div><span>${t.guess} / ${t.target} · +${pointsFor(t.target,t.guess)} P.</span></div>`).join('')}</div></section>`:''}
   </div>`);
   if(isHost() && done && state.scheduledRound !== turn.id) {
@@ -210,7 +210,13 @@ function makeTurn(room,index,prevCategory) {
   return { id:`r${index}`,index,team,chooserId:player.id,categoryId:pickCategory(room,prevCategory),startedAt:Date.now() };
 }
 function shuffle(list) {const a=[...list];for(let i=a.length-1;i>0;i--){const j=crypto.getRandomValues(new Uint32Array(1))[0]%(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
-function clearRoundUi() {state.privateRoundId='';state.privateValue=null;state.loadedSecretFor='';state.selectedGuess=null;state.scheduledRound='';clearTimeout(state.timer);clearTimeout(state.rescueTimer);state.rescueTimer=null;state.rescueRoundId='';}
+function clearRoundUi() {
+  state.privateRoundId='';state.privateValue=null;state.loadedSecretFor='';state.selectedGuess=null;
+  state.secretError='';state.secretStartedAt=0;state.secretRetryCount=0;state.secretToken++;
+  clearTimeout(state.secretTimer);state.secretTimer=null;
+  state.scheduledRound='';clearTimeout(state.timer);clearTimeout(state.rescueTimer);
+  state.rescueTimer=null;state.rescueRoundId='';
+}
 function assignTeams(room) {
   const players=shuffle(roomPlayers(room));let r=0,b=0;
   for(let i=0;i<players.length;i++){const p=players[i];const team=i%2?'blue':'red';p.team=team;p.slot=team==='red'?r++:b++;}
@@ -236,6 +242,20 @@ async function advanceRound() {
     room.status=end?'finished':'playing';room.turn=end?null:updates.turn;
     clearRoundUi();render();syncPrivateDemo();
   } else {const {db,sdk}=state.onlineClient;await sdk.update(sdk.ref(db,`rooms/${state.code}`),updates);}
+}
+async function skipStuckRound() {
+  const room=state.room, t=room?.turn;
+  if(!isHost()||room?.status!=='playing'||!t||t.clue)return;
+  if(!confirm('Die aktuelle Runde wirklich ohne Punkte überspringen?'))return;
+  if(state.mode==='demo'){
+    room.turn=makeTurn(room,t.index+1,t.categoryId);clearRoundUi();render();syncPrivateDemo();
+  } else {
+    // One atomic write at the turn node; even if another guest is disconnected.
+    const {db,sdk}=state.onlineClient;
+    const fresh=(await sdk.get(sdk.ref(db,`rooms/${state.code}/turn`))).val();
+    if(fresh?.id!==t.id||fresh.clue){showToast('Runde hat sich inzwischen geändert.');return;}
+    await sdk.set(sdk.ref(db,`rooms/${state.code}/turn`),makeTurn(room,t.index+1,t.categoryId));
+  }
 }
 async function endGame(){if(!isHost())return;const room=state.room,updates={status:'finished',turn:null};if(roundDone(room.turn)) updates[`history/${room.turn.id}`]=room.turn;
  if(state.mode==='demo'){ if(roundDone(room.turn)){room.history??={};room.history[room.turn.id]={...room.turn};}room.status='finished';room.turn=null;clearRoundUi();render();}
@@ -298,30 +318,59 @@ async function rescueRound(roundId) {
     showToast('Auflösen fehlgeschlagen: '+errMessage(e));
   }
 }
-async function syncPrivateOnline(){
-  const t=state.room?.turn;if(state.mode!=='online'||!t||state.room.status!=='playing'||!isChooser()||Number.isInteger(t.target))return;
+async function syncPrivateOnline(force=false){
+  const t=state.room?.turn;
+  if(state.mode!=='online'||!t||state.room.status!=='playing'||!isChooser()||Number.isInteger(t.target))return;
   const {db,sdk}=state.onlineClient;
+  if(force){state.loadedSecretFor='';state.secretError='';clearTimeout(state.secretTimer);}
   if(state.loadedSecretFor!==t.id){
-    state.loadedSecretFor=t.id;state.privateValue=null;state.privateRoundId='';
+    state.loadedSecretFor=t.id;
+    state.privateValue=null;state.privateRoundId='';state.secretError='';
+    state.secretStartedAt=Date.now();state.secretRetryCount++;
+    const token=++state.secretToken;
+    clearTimeout(state.secretTimer);
+    state.secretTimer=setTimeout(()=>{
+      if(state.secretToken===token && !Number.isInteger(state.privateValue) && state.room?.turn?.id===t.id){
+        state.secretError='Firebase antwortet nicht. Klicke auf „Zahl erneut laden“. Falls das nicht hilft, prüfe die Realtime-Database-Regeln.';
+        render();
+      }
+    },10000);
     try {
       const secretRef=sdk.ref(db,`secrets/${state.code}/${t.id}`);
       const existing=await sdk.get(secretRef);
+      if(token!==state.secretToken)return;
       let secret=existing.val();
       if(!existing.exists()){
-        const result=await sdk.runTransaction(secretRef,current=>current===null?{chooserId:state.me,number:randomNumber()}:undefined, {applyLocally:false});
+        const result=await sdk.runTransaction(secretRef,current=>current===null?{chooserId:state.me,number:randomNumber()}:undefined,{applyLocally:false});
+        if(token!==state.secretToken)return;
         secret=result.snapshot.val();
       }
-      if(!Number.isInteger(secret?.number))throw new Error('Die geheime Zahl konnte nicht geladen werden.');
-      if(state.room?.turn?.id!==t.id)return;
-      state.privateValue=secret.number;
-      state.privateRoundId=t.id;
+      if(!Number.isInteger(secret?.number))throw new Error('Firebase hat keine gültige Zahl zurückgegeben.');
+      if(state.room?.turn?.id!==t.id||token!==state.secretToken)return;
+      state.privateValue=secret.number;state.privateRoundId=t.id;state.secretError='';
+      clearTimeout(state.secretTimer);render();
+    } catch(e) {
+      if(token!==state.secretToken)return;
+      clearTimeout(state.secretTimer);
+      state.loadedSecretFor='';
+      state.secretError='Fehler beim Laden: '+errMessage(e);
+      console.error('SKALA geheime Zahl:',e);
       render();
-    } catch (e) {state.loadedSecretFor='';showToast('Geheime Zahl: '+errMessage(e));return;}
+      // Retry once automatically for transient network hiccups; permanent Firebase
+      // rule failures stay visible rather than getting hidden behind a spinner.
+      const txt=String(e?.message||e).toLowerCase();
+      if(state.secretRetryCount<2 && !txt.includes('permission')) {
+        state.secretTimer=setTimeout(()=>{if(state.room?.turn?.id===t.id&&isChooser()&&!Number.isInteger(state.privateValue))void syncPrivateOnline(true);},3500);
+      }
+      return;
+    }
   }
   if(state.room?.turn?.id===t.id && Number.isInteger(state.privateValue) && Number.isInteger(state.room.turn.guess) && !Number.isInteger(state.room.turn.target)) {
-    try {await sdk.set(sdk.ref(db,`rooms/${state.code}/turn/target`),state.privateValue);}catch(e){showToast('Auflösen fehlgeschlagen: '+errMessage(e));}
+    try {await sdk.set(sdk.ref(db,`rooms/${state.code}/turn/target`),state.privateValue);}
+    catch(e){showToast('Auflösen fehlgeschlagen: '+errMessage(e));}
   }
 }
+
 function attachRoom(code, client){
   if(state.unsubscribe)state.unsubscribe();clearRoundUi();state.mode='online';state.code=code;state.onlineClient=client;state.me=client.auth.currentUser.uid;
   const {db,sdk}=client;
@@ -406,6 +455,8 @@ app.addEventListener('click',event=>{
   if(action==='start'){void guarded(startGame);return;}
   if(action==='next'){void guarded(advanceRound);return;}
   if(action==='rescue-round'){const id=state.room?.turn?.id;if(id)void rescueRound(id);return;}
+  if(action==='retry-secret'){void syncPrivateOnline(true);return;}
+  if(action==='skip-broken'){void guarded(skipStuckRound);return;}
   if(action==='end'){if(confirm('Spiel wirklich beenden?'))void guarded(endGame);return;}
   if(action==='again'){void guarded(again);return;}
 });
