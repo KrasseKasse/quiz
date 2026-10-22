@@ -102,7 +102,17 @@ function applyAction(old,act,actor,territories){
   state.current=next;state.turn++;state.phase='reinforce';state.remaining=reinforcement(board,next,territories).total;state.pending=null;
   pushLog('Der nächste Spieler ist dran.');
  }
- if(act.type==='deploy'){
+ if(act.type==='deploy-batch'){
+  if(state.phase!=='reinforce')throw Error('Verstärkungsphase ist bereits vorbei.');
+  const adds=act.placements;
+  if(!adds||typeof adds!=='object'||Array.isArray(adds))throw Error('Ungültige Truppenverteilung.');
+  const entries=Object.entries(adds),sum=entries.reduce((acc,[id,n])=>acc+(Number(n)||0),0);
+  if(entries.length===0||!int(sum)||sum<1||sum>state.remaining)throw Error('Ungültige Verstärkungsanzahl.');
+  for(const [id,n] of entries)if(!own(id)||!int(n)||n<1)throw Error('Du kannst nur eigene Gebiete verstärken.');
+  for(const [id,n] of entries)board[id].troops+=n;
+  state.remaining-=sum;
+  if(act.finish){if(state.remaining!==0)throw Error('Noch nicht alle Truppen verteilt.');state.phase='attack';}
+ }else if(act.type==='deploy'){
   if(state.phase!=='reinforce'||!own(act.to))throw Error('Du darfst nur deine eigenen Gebiete verstärken.');
   const n=Number(act.amount);if(!int(n)||n<1||n>state.remaining)throw Error('Nicht genügend Truppen verfügbar.');
   board[act.to].troops+=n;state.remaining-=n;
