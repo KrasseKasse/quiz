@@ -73,7 +73,7 @@ function renderMap(){const g=gameRoom(),available=chosenTargets(),isAttack=g.pha
  return `<g data-territory="${t.id}" tabindex="0" role="button" aria-label="${esc(t.name)}: ${info.troops} Truppen, ${esc(playerName(owner))}"><path class="land-tile ${cls}" data-territory="${t.id}" d="${t.path}" fill="${color}" fill-rule="evenodd"><title>${esc(t.name)} · ${info.troops} Truppen · ${esc(playerName(owner))}</title></path><text class="map-territory-label" x="${t.x}" y="${t.y-11}">${esc(t.label)}</text><rect class="troop-badge" x="${t.x-16}" y="${t.y-6}" width="32" height="24" rx="8"/><text class="troop-label" x="${t.x}" y="${t.y+11}">${info.troops}</text></g>`;}).join('');
  return `<div class="world-map-viewport" id="map-area"><svg class="map-svg" id="map-svg" viewBox="${state.view.x} ${state.view.y} ${state.view.w} ${state.view.h}" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Interaktive Weltkarte mit 42 Territorien"><defs><pattern id="sea" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M0,28 L28,0" stroke="#2f7691" opacity=".12" stroke-width="1"/></pattern></defs><rect x="0" y="0" width="1200" height="640" fill="url(#sea)"/><text class="map-watermark" x="445" y="365">ATLANTIK</text><text class="map-watermark" x="819" y="535">INDISCHER OZEAN</text><text class="map-watermark" x="65" y="410">PAZIFIK</text>${oceanLinks()}${tiles}</svg></div><div class="map-controls"><span class="map-help">Gebiete anklicken · Scrollen zum Zoomen · Karte ziehen</span><span class="map-btns"><button class="outline small-btn continent-toggle" data-action="continents" id="world-continents-button" aria-haspopup="dialog">🌍 Kontinente</button><button class="outline small-btn" data-action="zoom-in">＋</button><button class="outline small-btn" data-action="zoom-out">－</button><button class="outline small-btn" data-action="map-reset">⤢</button></span></div>`;
 }
-// V3.2: Live continent progress (read-only; no new Firebase calls).
+// V3.3: Live continent progress and territory requirements (read-only; no new Firebase calls).
 const continentsModal=document.getElementById('continents-modal');
 const CONTINENT_ORDER=['na','sa','eu','af','as','oc'];
 const CONTINENT_LABELS={
@@ -86,9 +86,12 @@ function continentLang(){return window.SKALAI18N?.language==='en'?'en':'de';}
 function continentOverview(){
  const board=gameRoom()?.board||{},user=actor();
  return CONTINENT_ORDER.map(key=>{
-  const members=CONTINENT_MEMBERS[key],owned=members.filter(t=>board[t.id]?.owner===user).length;
+  const members=CONTINENT_MEMBERS[key].map(territory=>({
+   id:territory.id,name:territory.name,owned:board[territory.id]?.owner===user
+  }));
+  const owned=members.filter(t=>t.owned).length;
   const bonus=ENGINE.CONTINENTS[key].bonus;
-  return {key,owned,total:members.length,bonus,complete:owned===members.length};
+  return {key,members,owned,total:members.length,bonus,complete:owned===members.length};
  });
 }
 function continentPanelHTML(){
@@ -105,6 +108,17 @@ function continentPanelHTML(){
       <div class="continent-card-top"><div class="continent-name"><span aria-hidden="true">${icon}</span><strong>${name}</strong></div><span class="continent-bonus">+${c.bonus} <small>${isEn?'troops':'Truppen'}</small></span></div>
       <div class="continent-card-middle"><span>${c.owned}/${c.total} ${isEn?'territories':'Gebiete'}</span><span class="continent-status ${c.complete?'secured':''}">${c.complete?(isEn?'✓ Bonus secured':'✓ Bonus gesichert'):(isEn?'Not yet secured':'Noch nicht gesichert')}</span></div>
       <div class="continent-progress" role="progressbar" aria-label="${esc(name)}" aria-valuemin="0" aria-valuemax="${c.total}" aria-valuenow="${c.owned}"><span style="width:${100*c.owned/c.total}%"></span></div>
+      <div class="continent-list-heading">${isEn?'Territories required for the bonus':'Benötigte Gebiete für den Bonus'}</div>
+      <ul class="continent-territory-list" aria-label="${esc(name)}">
+        ${c.members.map(t=>{
+          const territoryName=isEn?(window.SKALAI18N?.translate(t.name)||t.name):t.name;
+          return `<li class="continent-territory ${t.owned?'owned':'missing'}" title="${t.owned?(isEn?'You control this territory':'Dieses Gebiet gehört dir'):(isEn?'You still need this territory':'Dieses Gebiet fehlt dir')}">
+            <span class="continent-territory-symbol" aria-hidden="true">${t.owned?'✓':'○'}</span>
+            <span class="continent-territory-name">${esc(territoryName)}</span>
+            <span class="continent-territory-state">${t.owned?(isEn?'Owned':'Besitzt'):(isEn?'Missing':'Fehlt')}</span>
+          </li>`;
+        }).join('')}
+      </ul>
     </div>`;
   }).join('')}</div>
   <div class="continent-total"><span>${isEn?'Secured bonuses for your next reinforcement phase':'Gesicherte Boni für deine nächste Verstärkungsphase'}</span><strong>+${earned} ${isEn?'troops':'Truppen'}</strong></div>
