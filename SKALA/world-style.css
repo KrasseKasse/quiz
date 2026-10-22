@@ -16,3 +16,29 @@
 .world-map-viewport{background:radial-gradient(ellipse at 54% 39%,#123955,#071a32 75%)}
 button[data-action=deploy],button[data-action=confirm-deploy]{min-height:49px;cursor:pointer}
 button[data-action=deploy]:active{transform:scale(.98)}
+/* V3 language control and native-look dialogs */
+.skala-language-switch{display:inline-flex;align-items:center;gap:3px;padding:3px;border:1px solid #667392;border-radius:12px;background:#172038;white-space:nowrap;flex-shrink:0;vertical-align:middle}
+.skala-language-switch button{border:0;border-radius:8px;min-width:35px;min-height:32px;padding:4px 8px;color:#b8cbe7;background:transparent;font:800 12px 'DM Sans',sans-serif;cursor:pointer}
+.skala-language-switch button.active{color:#161b32;background:#8cdbca;box-shadow:0 2px 6px #0004}
+.skala-language-switch button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.skala-dialog-overlay{position:fixed;inset:0;z-index:3000;background:#070e20e8;display:grid;place-items:center;padding:18px;backdrop-filter:blur(7px)}
+.skala-dialog{width:min(450px,100%);background:linear-gradient(145deg,#30395f,#1d2641);border:1px solid #8191ba;box-shadow:0 24px 100px #000b;border-radius:23px;padding:26px;color:white;text-align:center}
+.skala-dialog-icon{font-size:30px;margin-bottom:8px}
+.skala-dialog h2{font:800 25px 'Space Grotesk',sans-serif;margin:7px 0 10px}
+.skala-dialog p{font:500 15px/1.6 'DM Sans',sans-serif;color:#d4dff5;overflow-wrap:anywhere}
+.skala-dialog-buttons{display:flex;gap:10px;margin-top:23px}
+.skala-dialog-buttons button{flex:1;cursor:pointer;border-radius:12px;border:1px solid #727ea3;background:#303b59;color:white;font:800 14px 'DM Sans',sans-serif;min-height:47px}
+.skala-dialog-buttons button.skala-dialog-ok{background:#83e0c3;color:#17283a;border-color:#bdfde9}
+.skala-dialog-buttons button:focus-visible{outline:2px solid white;outline-offset:2px}
+.occupy-card{text-align:center;border-color:#83e0c3;width:min(490px,100%)}
+.occupy-card h2{font:800 26px 'Space Grotesk',sans-serif;margin:5px 0 8px}
+.occupy-route{padding:12px;border-radius:13px;background:#101b33;border:1px solid #4b617d;margin:16px 0}
+.occupy-card input[type=range]{width:100%;accent-color:#83e0c3;cursor:pointer}
+.occupy-modal-readout{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.occupy-modal-readout>div{padding:13px 7px;border:1px solid #405576;background:#16213a;border-radius:13px}
+.occupy-modal-readout strong{display:block;font:800 30px 'Space Grotesk',sans-serif;color:#8de9ca}
+.occupy-modal-readout small{font-size:12px;color:#d3def6}
+.occupy-confirm{width:100%;min-height:49px}
+@media(max-width:620px){.skala-language-switch button{min-width:30px;padding:4px 5px}.portal-top,.world-header{gap:8px}.world-header nav{gap:5px}}
+
+.hero-world h1 span{margin-left:.12em}
