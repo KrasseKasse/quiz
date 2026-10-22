@@ -7,7 +7,7 @@ const FLAG_NAMES=new Map(FLAGS),VALID_FLAGS=new Set(FLAGS.map(f=>f[0]));
 const PLAYER_COLORS=[{key:'red',name:'Rot',hex:'#f16f80'},{key:'blue',name:'Blau',hex:'#619df7'},{key:'green',name:'Grün',hex:'#64cc9c'},{key:'yellow',name:'Gelb',hex:'#f2cf67'},{key:'purple',name:'Lila',hex:'#b08aff'},{key:'orange',name:'Orange',hex:'#f39b63'},{key:'teal',name:'Türkis',hex:'#4ac5ca'},{key:'pink',name:'Pink',hex:'#ea89cf'}];
 const COLOR_MAP=Object.fromEntries(PLAYER_COLORS.map(c=>[c.key,c]));
 const SECURE_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const state={mode:'home',room:null,code:'',me:'',client:null,unsubscribe:null,pending:false,demoActor:'demo1',selection:null,target:null,moveAmount:1,deployAmount:1,view:{x:0,y:0,w:1200,h:640},profileDraft:null,profileFilter:'',lastTurnKey:'',lastActionError:''};
+const state={mode:'home',room:null,code:'',me:'',client:null,unsubscribe:null,pending:false,demoActor:'demo1',selection:null,target:null,moveAmount:1,deployAmount:1,view:{x:0,y:0,w:1200,h:640},profileDraft:null,profileFilter:'',lastTurnKey:'',lastActionError:'',draftDeploy:{}};
 let firebasePromise=null,toastTimer=null;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function savedName(){return String(localStorage.getItem('skala_name')||'').slice(0,18);}
@@ -58,7 +58,7 @@ function lobby(){const p=participants(),order=state.room.order||p.map(x=>x.id);
 }
 function oceanLinks(){
  const pairs=[['alaska','kamchatka'],['brazil','north_africa'],['greenland','iceland'],['iceland','great_britain'],['iceland','scandinavia'],['great_britain','scandinavia'],['southern_europe','egypt'],['north_africa','western_europe'],['southern_europe','north_africa'],['east_africa','middle_east'],['middle_east','egypt'],['siam','indonesia'],['indonesia','western_australia'],['indonesia','new_guinea'],['new_guinea','eastern_australia'],['japan','kamchatka'],['japan','mongolia'],['madagascar','south_africa'],['madagascar','east_africa']];
- return pairs.map(([a,b])=>{if(a==='alaska')return `<path class="ocean-link" d="M75,140 Q15,90 3,165 M1198,166 Q1162,100 1100,147"/>`;
+ return pairs.map(([a,b])=>{if(a==='alaska')return `<path class="ocean-link" d="M${TERR_BY_ID.alaska.x},${TERR_BY_ID.alaska.y} Q20,45 4,120 M1197,110 Q1170,40 ${TERR_BY_ID.kamchatka.x},${TERR_BY_ID.kamchatka.y}"/>`;
  const A=TERR_BY_ID[a],B=TERR_BY_ID[b];return `<path class="ocean-link" d="M${A.x},${A.y} Q${(A.x+B.x)/2},${(A.y+B.y)/2-17} ${B.x},${B.y}"/>`;}).join('');
 }
 function chosenTargets(){const g=gameRoom(),current=actor();if(!g||!active()||!state.selection)return [];
@@ -70,7 +70,7 @@ function chosenTargets(){const g=gameRoom(),current=actor();if(!g||!active()||!s
 }
 function renderMap(){const g=gameRoom(),available=chosenTargets(),isAttack=g.phase==='attack';
  const tiles=TERR.map(t=>{const info=g.board[t.id],owner=info?.owner,color=playerHex(owner),selected=state.selection===t.id,highlight=available.includes(t.id),cls=selected?'selected':highlight?(isAttack?'attacking':'reachable'):'inactive';
- return `<g data-territory="${t.id}" tabindex="0" role="button" aria-label="${esc(t.name)}: ${info.troops} Truppen, ${esc(playerName(owner))}"><path class="land-tile ${cls}" data-territory="${t.id}" d="${t.path}" fill="${color}"><title>${esc(t.name)} · ${info.troops} Truppen · ${esc(playerName(owner))}</title></path><text class="map-territory-label" x="${t.x}" y="${t.y-11}">${esc(t.label)}</text><rect class="troop-badge" x="${t.x-16}" y="${t.y-6}" width="32" height="24" rx="8"/><text class="troop-label" x="${t.x}" y="${t.y+11}">${info.troops}</text></g>`;}).join('');
+ return `<g data-territory="${t.id}" tabindex="0" role="button" aria-label="${esc(t.name)}: ${info.troops} Truppen, ${esc(playerName(owner))}"><path class="land-tile ${cls}" data-territory="${t.id}" d="${t.path}" fill="${color}" fill-rule="evenodd"><title>${esc(t.name)} · ${info.troops} Truppen · ${esc(playerName(owner))}</title></path><text class="map-territory-label" x="${t.x}" y="${t.y-11}">${esc(t.label)}</text><rect class="troop-badge" x="${t.x-16}" y="${t.y-6}" width="32" height="24" rx="8"/><text class="troop-label" x="${t.x}" y="${t.y+11}">${info.troops}</text></g>`;}).join('');
  return `<div class="world-map-viewport" id="map-area"><svg class="map-svg" id="map-svg" viewBox="${state.view.x} ${state.view.y} ${state.view.w} ${state.view.h}" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Interaktive Weltkarte mit 42 Territorien"><defs><pattern id="sea" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M0,28 L28,0" stroke="#2f7691" opacity=".12" stroke-width="1"/></pattern></defs><rect x="0" y="0" width="1200" height="640" fill="url(#sea)"/><text class="map-watermark" x="445" y="365">ATLANTIK</text><text class="map-watermark" x="819" y="535">INDISCHER OZEAN</text><text class="map-watermark" x="65" y="410">PAZIFIK</text>${oceanLinks()}${tiles}</svg></div><div class="map-controls"><span class="map-help">Gebiete anklicken · Scrollen zum Zoomen · Karte ziehen</span><span class="map-btns"><button class="outline small-btn" data-action="zoom-in">＋</button><button class="outline small-btn" data-action="zoom-out">－</button><button class="outline small-btn" data-action="map-reset">⤢</button></span></div>`;
 }
 function phaseLabel(p){return {reinforce:'Verstärkung',attack:'Angriff',fortify:'Befestigung',occupy:'Gebiet sichern',victory:'Weltherrschaft'}[p]||p;}
@@ -78,9 +78,10 @@ function num(n){return Number(n).toLocaleString('de-DE');}
 function actionArea(){const g=gameRoom(),you=active(),phase=g.phase,selected=state.selection,t=selected?TERR_BY_ID[selected]:null,territory=t?g.board[selected]:null,own=territory?.owner===actor(),targets=chosenTargets();let html='';
  if(!you)return `<div class="small-stat"><span class="stat-label">GERADE DRAN</span><strong>${esc(playerName(g.current))}</strong></div><p class="sub">Du kannst die Weltkarte anschauen, aber nur der aktive Spieler kann Truppen platzieren oder Angriffe starten.</p>`;
  if(phase==='reinforce'){
-  let remain=g.remaining||0;html=`<div class="small-stat"><span class="stat-label">NOCH ZU VERTEILEN</span><strong>${num(remain)} Truppen</strong></div><p class="sub">Klicke ein <b>eigenes Territorium</b> an und verteile deine Verstärkungen.</p>`;
-  if(selected&&own&&remain>0){html+=`<div class="small-stat"><strong style="font-size:16px">${esc(t.name)}</strong><div class="sub">Vorhanden: ${territory.troops}</div></div><div class="side-actions"><button class="outline" data-action="deploy" data-amount="1">＋ 1 Truppe</button><button class="outline" data-action="deploy" data-amount="5" ${remain<5?'disabled':''}>＋ 5 Truppen</button><button class="secondary" data-action="deploy" data-amount="${remain}">Alle ${remain} hier platzieren</button></div>`;}
-  html+=`<div style="margin-top:17px"><button class="primary full" data-action="next-phase" ${remain>0?'disabled':''}>Weiter zum Angriff →</button></div>`;
+  let remain=deploymentRemaining(),planned=(g.remaining||0)-remain;html=`<div class="small-stat"><span class="stat-label">NOCH ZU VERTEILEN</span><strong>${num(remain)} Truppen</strong></div><p class="sub">Klicke ein <b>eigenes Territorium</b> an und verteile deine Verstärkungen.</p>`;
+  if(selected&&own&&remain>0){html+=`<div class="small-stat"><strong style="font-size:16px">${esc(t.name)}</strong><div class="sub">Vorhanden: ${territory.troops+(state.draftDeploy[selected]||0)}</div></div><div class="side-actions"><button class="outline" data-action="deploy" data-amount="1">＋ 1 Truppe</button><button class="outline" data-action="deploy" data-amount="5" ${remain<5?'disabled':''}>＋ 5 Truppen</button><button class="secondary" data-action="deploy" data-amount="${remain}">Alle ${remain} hier platzieren</button></div>`;}
+  html+=planned>0?`<div class="small-stat" style="margin-top:14px"><div class="action-readout"><span>Vorgemerkt (sofort sichtbar)</span><strong>${planned}</strong></div><div class="sub">Noch frei: ${remain}</div></div><div class="side-actions"><button class="outline" data-action="undo-deploy">↶ Auswahl zurücksetzen</button><button class="secondary" data-action="confirm-deploy">${remain===0?'✓ Bestätigen & zum Angriff →':'✓ '+planned+' Truppen bestätigen'}</button></div>`:
+   `<div style="margin-top:17px"><button class="primary full" data-action="next-phase" ${remain>0?'disabled':''}>Weiter zum Angriff →</button></div>`;
  }else if(phase==='attack'){
   html=`<p class="sub">Wähle ein eigenes Gebiet mit mindestens zwei Truppen. Rot umrandete Nachbarn kannst du angreifen.</p>`;
   if(t){html+=`<div class="small-stat"><strong style="font-size:17px">${esc(t.name)}</strong><div class="sub">${territory.troops} Truppen · ${esc(playerName(territory.owner))}</div></div>`;}
@@ -107,17 +108,53 @@ function actionArea(){const g=gameRoom(),you=active(),phase=g.phase,selected=sta
 }
 function rosterGame(){const g=gameRoom();return `<div class="player-roster">${playerList().map(p=>{let s=ownerStats(p.id);return `<div class="roster-entry ${g.current===p.id?'active':''}">${flagPic(p.flag)}<span class="swatch-dot" style="--swatch:${hexOfColor(p.color)}"></span><div class="roster-meta"><strong>${esc(p.name)}${p.id===actor()?' (du)':''}${g.current===p.id?' ✦':''}</strong><small>${s.regions} Gebiete · ${s.troops} Truppen</small></div></div>`;}).join('')}</div>`;}
 function game(){const g=gameRoom();if(!g)return;const key=g.turn+':'+g.current+':'+g.phase;
- if(state.lastTurnKey && state.lastTurnKey!==key){state.selection=null;state.target=null;state.moveAmount=1;}state.lastTurnKey=key;
+ if(state.lastTurnKey && state.lastTurnKey!==key){state.selection=null;state.target=null;state.moveAmount=1;state.draftDeploy={};}state.lastTurnKey=key;
+ if(document.getElementById('map-svg')){updateGameUI();return;}
  const you=active(),rein=ENGINE.reinforcement(g.board,g.current,TERR);
- worldRoot.innerHTML=`${demoStrip()}<div class="game-upper"><div><div class="overline">SKALA · WELTHERRSCHAFT</div><div style="font:800 30px 'Space Grotesk'">Zug ${g.turn} <span class="caption" style="font-size:14px">· ${esc(phaseLabel(g.phase))}</span></div></div><div class="lobby-info"><span class="turn-badge">${you?'✨ Du bist am Zug!':`Am Zug: ${esc(playerName(g.current))}`}</span>${roomCode()}</div></div>
- <div class="game-columns"><div><section class="panel map-panel">${renderMap()}</section><section class="panel other-box"><div class="section-head"><h2>Spieler & Territorien</h2><span class="caption">${Object.keys(g.board).length} / 42 Gebiete</span></div>${rosterGame()}</section><section class="panel other-box"><div class="section-head"><h2>Letzte Ereignisse</h2></div><div class="game-log">${(g.log||[]).length?(g.log||[]).map(x=>`<div>• ${esc(x.text)}</div>`).join(''):'<div>Das Spiel hat begonnen.</div>'}</div></section></div>
- <aside class="panel info-sidebar"><div class="overline">AKTUELLE PHASE</div><h2>${esc(phaseLabel(g.phase))}</h2><div class="phase-indicator">${[['reinforce','1 · Verstärken'],['attack','2 · Angriff'],['fortify','3 · Befestigen']].map(([k,name])=>`<div class="phase-step ${k===g.phase||k==='attack'&&g.phase==='occupy'?'active':''}">${name}</div>`).join('')}</div>${actionArea()}<div style="margin-top:23px;border-top:1px solid #465171;padding-top:17px"><div class="overline">VERSTÄRKUNGEN</div><div class="sub">4 mindestens oder 1 pro 3 Gebiete (größerer Wert), plus Kontinentalboni.</div>${rein.bonuses.length?rein.bonuses.map(c=>`<div class="action-readout">${esc(c.name)} <strong style="font-size:14px">+${c.bonus}</strong></div>`).join(''):'<p class="sub">Noch kein vollständig kontrollierter Kontinent.</p>'}</div></aside></div>`;
+ worldRoot.innerHTML=`${demoStrip()}<div class="game-upper"><div><div class="overline">SKALA · WELTHERRSCHAFT</div><div style="font:800 30px 'Space Grotesk'">Zug <span id="world-turn-number">${g.turn}</span> <span class="caption" style="font-size:14px">· <span id="world-turn-phase">${esc(phaseLabel(g.phase))}</span></span></div></div><div class="lobby-info"><span id="world-turn-badge" class="turn-badge">${you?'✨ Du bist am Zug!':`Am Zug: ${esc(playerName(g.current))}`}</span>${roomCode()}</div></div>
+ <div class="game-columns"><div><section class="panel map-panel">${renderMap()}</section><section class="panel other-box"><div class="section-head"><h2>Spieler & Territorien</h2><span class="caption">${Object.keys(g.board).length} / 42 Gebiete</span></div><div id="world-roster">${rosterGame()}</div></section><section class="panel other-box"><div class="section-head"><h2>Letzte Ereignisse</h2></div><div class="game-log" id="world-log">${(g.log||[]).length?(g.log||[]).map(x=>`<div>• ${esc(x.text)}</div>`).join(''):'<div>Das Spiel hat begonnen.</div>'}</div></section></div>
+ <aside class="panel info-sidebar"><div class="overline">AKTUELLE PHASE</div><h2 id="world-phase-heading">${esc(phaseLabel(g.phase))}</h2><div class="phase-indicator" id="world-phases">${[['reinforce','1 · Verstärken'],['attack','2 · Angriff'],['fortify','3 · Befestigen']].map(([k,name])=>`<div class="phase-step ${k===g.phase||k==='attack'&&g.phase==='occupy'?'active':''}">${name}</div>`).join('')}</div><div id="world-actions-area">${actionArea()}</div><div style="margin-top:23px;border-top:1px solid #465171;padding-top:17px"><div class="overline">VERSTÄRKUNGEN</div><div class="sub">4 mindestens oder 1 pro 3 Gebiete (größerer Wert), plus Kontinentalboni.</div>${rein.bonuses.length?rein.bonuses.map(c=>`<div class="action-readout">${esc(c.name)} <strong style="font-size:14px">+${c.bonus}</strong></div>`).join(''):'<p class="sub">Noch kein vollständig kontrollierter Kontinent.</p>'}</div></aside></div>`;
  setupMapHandlers();
+ updateGameUI();
 }
+function updateGameUI(){
+ const g=gameRoom(),svg=document.getElementById('map-svg');if(!g||!svg)return;
+ const targets=new Set(chosenTargets()),attacking=g.phase==='attack';
+ for(const t of TERR){
+  const info=g.board[t.id];if(!info)continue;
+  const group=svg.querySelector(`g[data-territory="${t.id}"]`);
+  if(!group)continue;
+  const tile=group.querySelector('path.land-tile');
+  const cls=state.selection===t.id?'selected':targets.has(t.id)?(attacking?'attacking':'reachable'):'inactive';
+  tile.setAttribute('class',`land-tile ${cls}`);
+  tile.setAttribute('fill',playerHex(info.owner));
+  group.querySelector('.troop-label').textContent=info.troops+(state.draftDeploy[t.id]||0);
+  group.setAttribute('aria-label',`${t.name}: ${info.troops} Truppen, ${playerName(info.owner)}`);
+ }
+ const set=(id,value)=>{const e=document.getElementById(id);if(e)e.textContent=value;};
+ set('world-turn-number',g.turn);set('world-turn-phase',phaseLabel(g.phase));
+ set('world-turn-badge',active()?'✨ Du bist am Zug!':`Am Zug: ${playerName(g.current)}`);
+ set('world-phase-heading',phaseLabel(g.phase));
+ const steps=document.querySelectorAll('#world-phases .phase-step');
+ steps.forEach((step,i)=>step.classList.toggle('active',(['reinforce','attack','fortify'][i]===g.phase)||(i===1&&g.phase==='occupy')));
+ const area=document.getElementById('world-actions-area');if(area)area.innerHTML=actionArea();
+ const roster=document.getElementById('world-roster');if(roster)roster.innerHTML=rosterGame();
+ const log=document.getElementById('world-log');if(log)log.innerHTML=(g.log||[]).length?g.log.map(x=>`<div>• ${esc(x.text)}</div>`).join(''):'<div>Das Spiel hat begonnen.</div>';
+}
+function deploymentRemaining(){const g=gameRoom();return (g?.remaining||0)-Object.values(state.draftDeploy).reduce((a,b)=>a+b,0);}
+function draftTroops(n){
+ const g=gameRoom(),id=state.selection;
+ if(!g||g.phase!=='reinforce'||!active()||g.board[id]?.owner!==actor())return;
+ const amount=Math.min(n,deploymentRemaining());
+ if(amount<=0)return;
+ state.draftDeploy[id]=(state.draftDeploy[id]||0)+amount;
+ updateGameUI();
+}
+function resetDraft(){state.draftDeploy={};updateGameUI();}
 function victory(){const g=gameRoom(),win=g.winner,player=state.room.players?.[win];worldRoot.innerHTML=`${demoStrip()}<section class="panel victory-panel"><div style="font-size:62px">🏆</div><div class="overline">SPIEL BEENDET</div><h1>Weltherrschaft!</h1><div style="display:flex;justify-content:center;align-items:center;gap:12px">${flagPic(player?.flag)}<strong style="font-size:22px;color:${playerHex(win)}">${esc(player?.name||'Ein Spieler')}</strong></div><p class="sub">Alle 42 Territorien sind erobert. Glückwunsch zum Sieg!</p><button class="secondary" data-action="back-menu">↖ Zur Spielauswahl</button></section>`;}
 function render(){updateProfileButton();if(!state.room){home();return;}if(state.room.status==='lobby')lobby();else if(gameRoom()?.status==='finished')victory();else game();}
 function setQuery(code){history.replaceState(null,'',`${location.pathname}?room=${encodeURIComponent(code)}`);}
-function clearSession(){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='home';state.room=null;state.code='';state.me='';state.client=null;state.selection=null;state.target=null;state.lastTurnKey='';localStorage.removeItem('skala_world_room');history.replaceState(null,'',location.pathname);render();}
+function clearSession(){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='home';state.room=null;state.code='';state.me='';state.client=null;state.selection=null;state.target=null;state.lastTurnKey='';state.draftDeploy={};localStorage.removeItem('skala_world_room');history.replaceState(null,'',location.pathname);render();}
 function attach(code,client){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='online';state.room=null;state.code=code;state.me=client.auth.currentUser.uid;state.client=client;
  const {sdk,db}=client;state.unsubscribe=sdk.onValue(sdk.ref(db,`conquestRooms/${code}`),snap=>{const r=snap.val();if(!r){clearSession();message('Lobby existiert nicht mehr.');return;}if(!r.players?.[state.me]){const wasKicked=!!r.kicked?.[state.me];clearSession();message(wasKicked?'Du wurdest vom Host aus der Lobby entfernt.':'Du bist nicht mehr im Raum.');return;}state.room=r;render();},e=>message(firebaseError(e)));
  localStorage.setItem('skala_world_room',code);setQuery(code);
@@ -215,7 +252,14 @@ worldRoot.addEventListener('click',e=>{const b=e.target.closest('[data-action]')
  if(type==='shuffle'){guard(shuffleLobby);return;}
  if(type==='start'){guard(startLobby);return;}
  if(type==='kick'){guard(()=>kick(b.dataset.id));return;}
- if(type==='deploy'){const amt=Number(b.dataset.amount);if(state.selection)guard(()=>gameAction({type:'deploy',to:state.selection,amount:amt}));return;}
+ if(type==='deploy'){draftTroops(Number(b.dataset.amount));return;}
+ if(type==='undo-deploy'){resetDraft();return;}
+ if(type==='confirm-deploy'){
+  const amount=Object.values(state.draftDeploy).reduce((a,b)=>a+b,0);
+  if(!amount)return;
+  const placements={...state.draftDeploy},finish=deploymentRemaining()===0;
+  guard(async()=>{await gameAction({type:'deploy-batch',placements,finish});state.draftDeploy={};render();});return;
+ }
  if(type==='next-phase'){const g=gameRoom();guard(()=>gameAction({type:{reinforce:'end-reinforce',attack:'end-attack',fortify:'end-fortify'}[g.phase]}));return;}
  if(type==='attack'){if(!confirm(`Angriff auf ${TERR_BY_ID[state.target]?.name} ausführen?`))return;guard(()=>gameAction({type:'attack',from:state.selection,to:state.target}));return;}
  if(type==='occupy'){guard(()=>gameAction({type:'occupy',leave:state.moveAmount}));return;}
