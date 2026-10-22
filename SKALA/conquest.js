@@ -94,7 +94,7 @@ function actionArea(){const g=gameRoom(),you=active(),phase=g.phase,selected=sta
  }else if(phase==='occupy'){
   const pp=g.pending,from=TERR_BY_ID[pp.from],to=TERR_BY_ID[pp.to],total=pp.total;
   state.moveAmount=Math.max(1,Math.min(total-1,state.moveAmount));
-  html=`<p class="sub">🎉 Gebiet erobert! Bestimme, wie viele der ${total} überlebenden Truppen im Ausgangsgebiet bleiben.</p><div class="small-stat"><strong style="font-size:15px">${esc(from.name)} → ${esc(to.name)}</strong><div class="action-readout">Bleiben zurück <strong id="left-amount">${state.moveAmount}</strong></div><input id="occupy-slider" type="range" min="1" max="${total-1}" value="${state.moveAmount}"/><div class="action-readout">Ziehen ein <strong id="enter-amount">${total-state.moveAmount}</strong></div></div><button class="secondary full" data-action="occupy">Verteilung bestätigen</button>`;
+  html=`<div class="small-stat"><strong>🎉 Gebiet erobert!</strong><p class="sub">Verteile deine Truppen im geöffneten Fenster.</p><button class="secondary full" data-action="show-occupy">Truppen verteilen</button></div>`;
  }else if(phase==='fortify'){
   html=`<p class="sub">Verschiebe einmal Truppen zwischen eigenen verbundenen Gebieten. Mindestens eine muss zurückbleiben.</p>`;
   if(t){html+=`<div class="small-stat"><strong style="font-size:17px">${esc(t.name)}</strong><div class="sub">${territory.troops} Truppen · ${own?'Eigenes Gebiet':'Fremdes Gebiet'}</div></div>`;}
@@ -117,6 +117,31 @@ function game(){const g=gameRoom();if(!g)return;const key=g.turn+':'+g.current+'
  setupMapHandlers();
  updateGameUI();
 }
+const occupyModal=document.getElementById('occupy-modal');
+let lastOccupyKey='';
+function syncOccupyModal(){
+ const g=gameRoom();if(!g||g.phase!=='occupy'||!active()||!g.pending){occupyModal.hidden=true;occupyModal.innerHTML='';lastOccupyKey='';return;}
+ const pp=g.pending;const key=[g.turn,g.current,pp.from,pp.to,pp.total].join(':');
+ if(lastOccupyKey===key && !occupyModal.hidden)return;
+ lastOccupyKey=key;state.moveAmount=Math.max(1,Math.min(pp.total-1,state.moveAmount));
+ const from=TERR_BY_ID[pp.from],to=TERR_BY_ID[pp.to];
+ occupyModal.hidden=false;
+ occupyModal.innerHTML=`<section class="modal-card occupy-card" role="dialog" aria-modal="true" aria-labelledby="occupy-title">
+  <div style="font-size:32px">🏆</div><div class="overline">GEBIET EROBERT</div><h2 id="occupy-title">Gebiet erobert!</h2>
+  <p class="sub">Du hast ${esc(to.name)} erobert. Lege fest, wie viele Truppen in ${esc(from.name)} zurückbleiben.</p>
+  <div class="occupy-route">${esc(from.name)} → ${esc(to.name)}</div>
+  <label for="occupy-modal-slider" class="field-label">TRUPPENVERTEILUNG</label>
+  <input id="occupy-modal-slider" type="range" min="1" max="${pp.total-1}" value="${state.moveAmount}" aria-label="Truppen zurücklassen">
+  <div class="occupy-modal-readout"><div><small>Bleiben zurück</small><strong id="occupy-left">${state.moveAmount}</strong><small>${esc(from.name)}</small></div><div><small>Ziehen ein</small><strong id="occupy-enter">${pp.total-state.moveAmount}</strong><small>${esc(to.name)}</small></div></div>
+  <button class="secondary occupy-confirm" data-action="occupy-confirm">✓ Verteilung bestätigen</button>
+  <p class="sub" style="font-size:12px;margin-top:12px">Mindestens eine Truppe in jedem Gebiet.</p>
+ </section>`;
+ window.SKALAI18N?.apply();
+ occupyModal.querySelector('button')?.focus();
+}
+occupyModal.addEventListener('input',e=>{if(e.target.id!=='occupy-modal-slider')return;state.moveAmount=Number(e.target.value);document.getElementById('occupy-left').textContent=state.moveAmount;document.getElementById('occupy-enter').textContent=gameRoom().pending.total-state.moveAmount;});
+occupyModal.addEventListener('click',e=>{const btn=e.target.closest('[data-action="occupy-confirm"]');if(!btn||state.pending)return;btn.disabled=true;guard(async()=>{try{await gameAction({type:'occupy',leave:state.moveAmount})}finally{btn.disabled=false;}});});
+
 function updateGameUI(){
  const g=gameRoom(),svg=document.getElementById('map-svg');if(!g||!svg)return;
  const targets=new Set(chosenTargets()),attacking=g.phase==='attack';
@@ -140,6 +165,7 @@ function updateGameUI(){
  const area=document.getElementById('world-actions-area');if(area)area.innerHTML=actionArea();
  const roster=document.getElementById('world-roster');if(roster)roster.innerHTML=rosterGame();
  const log=document.getElementById('world-log');if(log)log.innerHTML=(g.log||[]).length?g.log.map(x=>`<div>• ${esc(x.text)}</div>`).join(''):'<div>Das Spiel hat begonnen.</div>';
+ syncOccupyModal();
 }
 function deploymentRemaining(){const g=gameRoom();return (g?.remaining||0)-Object.values(state.draftDeploy).reduce((a,b)=>a+b,0);}
 function draftTroops(n){
@@ -152,7 +178,7 @@ function draftTroops(n){
 }
 function resetDraft(){state.draftDeploy={};updateGameUI();}
 function victory(){const g=gameRoom(),win=g.winner,player=state.room.players?.[win];worldRoot.innerHTML=`${demoStrip()}<section class="panel victory-panel"><div style="font-size:62px">🏆</div><div class="overline">SPIEL BEENDET</div><h1>Weltherrschaft!</h1><div style="display:flex;justify-content:center;align-items:center;gap:12px">${flagPic(player?.flag)}<strong style="font-size:22px;color:${playerHex(win)}">${esc(player?.name||'Ein Spieler')}</strong></div><p class="sub">Alle 42 Territorien sind erobert. Glückwunsch zum Sieg!</p><button class="secondary" data-action="back-menu">↖ Zur Spielauswahl</button></section>`;}
-function render(){updateProfileButton();if(!state.room){home();return;}if(state.room.status==='lobby')lobby();else if(gameRoom()?.status==='finished')victory();else game();}
+function render(){if(!gameRoom()||gameRoom().phase!=='occupy')syncOccupyModal();updateProfileButton();if(!state.room){home();return;}if(state.room.status==='lobby')lobby();else if(gameRoom()?.status==='finished')victory();else game();}
 function setQuery(code){history.replaceState(null,'',`${location.pathname}?room=${encodeURIComponent(code)}`);}
 function clearSession(){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='home';state.room=null;state.code='';state.me='';state.client=null;state.selection=null;state.target=null;state.lastTurnKey='';state.draftDeploy={};localStorage.removeItem('skala_world_room');history.replaceState(null,'',location.pathname);render();}
 function attach(code,client){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='online';state.room=null;state.code=code;state.me=client.auth.currentUser.uid;state.client=client;
@@ -185,7 +211,7 @@ async function startLobby(){if(!host()||state.room.status!=='lobby')return;
  const start=ENGINE.createState(order,TERR);
  if(state.mode==='demo'){state.room.status='playing';state.room.state=start;state.room.order=order;state.selection=null;state.target=null;state.lastTurnKey='';render();return;}
  const {db,sdk}=state.client;await sdk.update(sdk.ref(db,`conquestRooms/${state.code}`),{status:'playing',order,state:start});}
-async function kick(id){if(!host()||state.room.status!=='lobby'||id===state.room.hostId)return;let p=state.room.players[id];if(!p)return;if(!confirm(`${p.name} aus der Lobby entfernen?`))return;
+async function kick(id){if(!host()||state.room.status!=='lobby'||id===state.room.hostId)return;let p=state.room.players[id];if(!p)return;if(!await SKALAI18N.confirm(`${p.name} aus der Lobby entfernen?`,{title:'Spieler entfernen?',yes:'Entfernen',danger:true}))return;
  const order=(state.room.order||[]).filter(x=>x!==id);
  if(state.mode==='demo'){delete state.room.players[id];delete state.room.colors[p.color];state.room.order=order;render();return;}
  const {sdk,db}=state.client;await sdk.update(sdk.ref(db,`conquestRooms/${state.code}`),{[`players/${id}`]:null,[`colors/${p.color}`]:null,[`kicked/${id}`]:true,order});}
@@ -230,7 +256,7 @@ function openProfile(){const p=profileNow();state.profileDraft={...p};state.prof
  modal.innerHTML=`<section class="modal-card" role="dialog" aria-modal="true" aria-label="Profil"><div class="modal-head"><h2>⚙ Dein Profil</h2><button class="icon-btn" data-modal="close">✕</button></div><div class="profile-preview"><span class="profile-flag" id="prof-flag">${flagPic(p.flag)}</span><div><strong id="prof-label">${esc(p.name||'Spieler')}</strong><p id="prof-country">${esc(FLAG_NAMES.get(p.flag)||'')}</p></div></div><form id="prof-form"><label class="field-label">SPIELERNAME (MAX. 18)</label><input id="prof-name" maxlength="18" required value="${esc(p.name)}"><label class="field-label">LÄNDERFLAGGE</label><input id="prof-filter" placeholder="Kiribati, Deutschland, USA …"><div class="flag-grid" id="prof-flags"></div><button class="primary full" type="submit">Profil speichern</button></form></section>`;
  flagChoices();
 }
-function flagChoices(){const q=state.profileFilter.toLowerCase();document.getElementById('prof-flags').innerHTML=FLAGS.filter(f=>f[1].toLowerCase().includes(q)).map(([c,n])=>`<button class="flag-choice ${state.profileDraft.flag===c?'chosen':''}" data-flag="${c}" type="button">${flagPic(c)}<small>${esc(n)}</small></button>`).join('')||'<p>Kein Land gefunden</p>';}
+function flagChoices(){const q=state.profileFilter.toLowerCase();document.getElementById('prof-flags').innerHTML=FLAGS.filter(f=>(f[1]+' '+(window.SKALAI18N?.countryName(f[0])||'')).toLowerCase().includes(q)).map(([c,n])=>`<button class="flag-choice ${state.profileDraft.flag===c?'chosen':''}" data-flag="${c}" type="button">${flagPic(c)}<small>${esc(n)}</small></button>`).join('')||'<p>Kein Land gefunden</p>';}
 async function saveProfile(){const name=document.getElementById('prof-name').value.trim(),flag=state.profileDraft.flag;
  if(!name||name.length>18||!VALID_FLAGS.has(flag))throw Error('Wähle einen Namen und eine Länderflagge.');
  if(state.mode==='online'&&state.room){const {sdk,db}=state.client,base=`conquestRooms/${state.code}/players/${state.me}`;
@@ -261,8 +287,8 @@ worldRoot.addEventListener('click',e=>{const b=e.target.closest('[data-action]')
   guard(async()=>{await gameAction({type:'deploy-batch',placements,finish});state.draftDeploy={};render();});return;
  }
  if(type==='next-phase'){const g=gameRoom();guard(()=>gameAction({type:{reinforce:'end-reinforce',attack:'end-attack',fortify:'end-fortify'}[g.phase]}));return;}
- if(type==='attack'){if(!confirm(`Angriff auf ${TERR_BY_ID[state.target]?.name} ausführen?`))return;guard(()=>gameAction({type:'attack',from:state.selection,to:state.target}));return;}
- if(type==='occupy'){guard(()=>gameAction({type:'occupy',leave:state.moveAmount}));return;}
+ if(type==='attack'){const from=state.selection,to=state.target;if(!to)return;SKALAI18N.confirm(`Angriff auf ${TERR_BY_ID[to]?.name} ausführen?`,{title:'Angriff bestätigen',yes:'⚔ Angreifen'}).then(ok=>{if(ok)guard(()=>gameAction({type:'attack',from,to}));});return;}
+ if(type==='occupy'){guard(()=>gameAction({type:'occupy',leave:state.moveAmount}));return;}if(type==='show-occupy'){lastOccupyKey='';syncOccupyModal();return;}
  if(type==='fortify'){guard(()=>gameAction({type:'fortify',from:state.selection,to:state.target,amount:state.moveAmount}));return;}
  if(type==='zoom-in'){zoomAt(.8);return;}if(type==='zoom-out'){zoomAt(1.25);return;}if(type==='map-reset'){state.view={x:0,y:0,w:1200,h:640};render();return;}
  if(type==='back-menu'){location.assign('./index.html');return;}
