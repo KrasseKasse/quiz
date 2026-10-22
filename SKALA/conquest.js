@@ -71,8 +71,67 @@ function chosenTargets(){const g=gameRoom(),current=actor();if(!g||!active()||!s
 function renderMap(){const g=gameRoom(),available=chosenTargets(),isAttack=g.phase==='attack';
  const tiles=TERR.map(t=>{const info=g.board[t.id],owner=info?.owner,color=playerHex(owner),selected=state.selection===t.id,highlight=available.includes(t.id),cls=selected?'selected':highlight?(isAttack?'attacking':'reachable'):'inactive';
  return `<g data-territory="${t.id}" tabindex="0" role="button" aria-label="${esc(t.name)}: ${info.troops} Truppen, ${esc(playerName(owner))}"><path class="land-tile ${cls}" data-territory="${t.id}" d="${t.path}" fill="${color}" fill-rule="evenodd"><title>${esc(t.name)} · ${info.troops} Truppen · ${esc(playerName(owner))}</title></path><text class="map-territory-label" x="${t.x}" y="${t.y-11}">${esc(t.label)}</text><rect class="troop-badge" x="${t.x-16}" y="${t.y-6}" width="32" height="24" rx="8"/><text class="troop-label" x="${t.x}" y="${t.y+11}">${info.troops}</text></g>`;}).join('');
- return `<div class="world-map-viewport" id="map-area"><svg class="map-svg" id="map-svg" viewBox="${state.view.x} ${state.view.y} ${state.view.w} ${state.view.h}" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Interaktive Weltkarte mit 42 Territorien"><defs><pattern id="sea" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M0,28 L28,0" stroke="#2f7691" opacity=".12" stroke-width="1"/></pattern></defs><rect x="0" y="0" width="1200" height="640" fill="url(#sea)"/><text class="map-watermark" x="445" y="365">ATLANTIK</text><text class="map-watermark" x="819" y="535">INDISCHER OZEAN</text><text class="map-watermark" x="65" y="410">PAZIFIK</text>${oceanLinks()}${tiles}</svg></div><div class="map-controls"><span class="map-help">Gebiete anklicken · Scrollen zum Zoomen · Karte ziehen</span><span class="map-btns"><button class="outline small-btn" data-action="zoom-in">＋</button><button class="outline small-btn" data-action="zoom-out">－</button><button class="outline small-btn" data-action="map-reset">⤢</button></span></div>`;
+ return `<div class="world-map-viewport" id="map-area"><svg class="map-svg" id="map-svg" viewBox="${state.view.x} ${state.view.y} ${state.view.w} ${state.view.h}" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Interaktive Weltkarte mit 42 Territorien"><defs><pattern id="sea" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M0,28 L28,0" stroke="#2f7691" opacity=".12" stroke-width="1"/></pattern></defs><rect x="0" y="0" width="1200" height="640" fill="url(#sea)"/><text class="map-watermark" x="445" y="365">ATLANTIK</text><text class="map-watermark" x="819" y="535">INDISCHER OZEAN</text><text class="map-watermark" x="65" y="410">PAZIFIK</text>${oceanLinks()}${tiles}</svg></div><div class="map-controls"><span class="map-help">Gebiete anklicken · Scrollen zum Zoomen · Karte ziehen</span><span class="map-btns"><button class="outline small-btn continent-toggle" data-action="continents" id="world-continents-button" aria-haspopup="dialog">🌍 Kontinente</button><button class="outline small-btn" data-action="zoom-in">＋</button><button class="outline small-btn" data-action="zoom-out">－</button><button class="outline small-btn" data-action="map-reset">⤢</button></span></div>`;
 }
+// V3.2: Live continent progress (read-only; no new Firebase calls).
+const continentsModal=document.getElementById('continents-modal');
+const CONTINENT_ORDER=['na','sa','eu','af','as','oc'];
+const CONTINENT_LABELS={
+ na:['Nordamerika','North America','🌎'],sa:['Südamerika','South America','🌎'],
+ eu:['Europa','Europe','🌍'],af:['Afrika','Africa','🌍'],
+ as:['Asien','Asia','🌏'],oc:['Australien','Australia','🌏']
+};
+const CONTINENT_MEMBERS=Object.fromEntries(CONTINENT_ORDER.map(key=>[key,TERR.filter(t=>t.continent===key)]));
+function continentLang(){return window.SKALAI18N?.language==='en'?'en':'de';}
+function continentOverview(){
+ const board=gameRoom()?.board||{},user=actor();
+ return CONTINENT_ORDER.map(key=>{
+  const members=CONTINENT_MEMBERS[key],owned=members.filter(t=>board[t.id]?.owner===user).length;
+  const bonus=ENGINE.CONTINENTS[key].bonus;
+  return {key,owned,total:members.length,bonus,complete:owned===members.length};
+ });
+}
+function continentPanelHTML(){
+ const isEn=continentLang()==='en',data=continentOverview(),earned=data.reduce((n,c)=>n+(c.complete?c.bonus:0),0);
+ const names=CONTINENT_LABELS;
+ const heading=isEn?'Continents':'Kontinente';
+ const player=playerName(actor());
+ return `<section class="modal-card continents-dialog" role="dialog" aria-modal="true" aria-labelledby="continents-title" tabindex="-1">
+  <div class="modal-head"><div><div class="overline">SKALA · ${isEn?'WORLD DOMINATION':'WELTHERRSCHAFT'}</div><h2 id="continents-title">🌍 ${heading}</h2></div><button class="icon-btn" type="button" data-continents-close aria-label="${isEn?'Close':'Schließen'}">✕</button></div>
+  <p class="sub continent-intro">${isEn?'Territory progress for':'Gebietsfortschritt für'} <strong>${esc(player)}</strong>. ${isEn?'You receive a continent bonus only when you control every territory in that continent.':'Den Kontinentalbonus bekommst du nur, wenn du alle Gebiete eines Kontinents besitzt.'}</p>
+  <div class="continents-grid">${data.map(c=>{
+    const name=names[c.key][isEn?1:0],icon=names[c.key][2];
+    return `<div class="continent-card ${c.complete?'continent-complete':''}">
+      <div class="continent-card-top"><div class="continent-name"><span aria-hidden="true">${icon}</span><strong>${name}</strong></div><span class="continent-bonus">+${c.bonus} <small>${isEn?'troops':'Truppen'}</small></span></div>
+      <div class="continent-card-middle"><span>${c.owned}/${c.total} ${isEn?'territories':'Gebiete'}</span><span class="continent-status ${c.complete?'secured':''}">${c.complete?(isEn?'✓ Bonus secured':'✓ Bonus gesichert'):(isEn?'Not yet secured':'Noch nicht gesichert')}</span></div>
+      <div class="continent-progress" role="progressbar" aria-label="${esc(name)}" aria-valuemin="0" aria-valuemax="${c.total}" aria-valuenow="${c.owned}"><span style="width:${100*c.owned/c.total}%"></span></div>
+    </div>`;
+  }).join('')}</div>
+  <div class="continent-total"><span>${isEn?'Secured bonuses for your next reinforcement phase':'Gesicherte Boni für deine nächste Verstärkungsphase'}</span><strong>+${earned} ${isEn?'troops':'Truppen'}</strong></div>
+  <p class="sub continent-footnote">${isEn?'Bonuses are added automatically at the start of your turn, on top of your normal reinforcements.':'Die Boni werden zu Beginn deines Zuges automatisch zu deinen normalen Verstärkungen addiert.'}</p>
+ </section>`;
+}
+function refreshContinentsModal(){
+ const button=document.getElementById('world-continents-button');
+ if(button)button.textContent=continentLang()==='en'?'🌍 Continents':'🌍 Kontinente';
+ if(!continentsModal.hidden){
+  // Only rebuild on a relevant change, so animations and focus do not reset on every state update.
+  const board=gameRoom()?.board;
+  if(!board){closeContinentsModal();return;}
+  const key=JSON.stringify([actor(),continentLang(),CONTINENT_ORDER.map(k=>CONTINENT_MEMBERS[k].map(t=>board[t.id]?.owner))]);
+  if(continentsModal.dataset.stateKey!==key){continentsModal.dataset.stateKey=key;continentsModal.innerHTML=continentPanelHTML();}
+ }
+}
+function openContinentsModal(){
+ if(!gameRoom()?.board)return;
+ continentsModal.hidden=false;continentsModal.dataset.stateKey='';refreshContinentsModal();
+ continentsModal.querySelector('[data-continents-close]')?.focus();
+}
+function closeContinentsModal(){continentsModal.hidden=true;continentsModal.innerHTML='';continentsModal.dataset.stateKey='';}
+continentsModal.addEventListener('click',e=>{
+ if(e.target===continentsModal||e.target.closest('[data-continents-close]')){closeContinentsModal();document.getElementById('world-continents-button')?.focus();}
+});
+window.addEventListener('skala:languagechange',refreshContinentsModal);
 function phaseLabel(p){return {reinforce:'Verstärkung',attack:'Angriff',fortify:'Befestigung',occupy:'Gebiet sichern',victory:'Weltherrschaft'}[p]||p;}
 function num(n){return Number(n).toLocaleString('de-DE');}
 function actionArea(){const g=gameRoom(),you=active(),phase=g.phase,selected=state.selection,t=selected?TERR_BY_ID[selected]:null,territory=t?g.board[selected]:null,own=territory?.owner===actor(),targets=chosenTargets();let html='';
@@ -166,6 +225,7 @@ function updateGameUI(){
  const roster=document.getElementById('world-roster');if(roster)roster.innerHTML=rosterGame();
  const log=document.getElementById('world-log');if(log)log.innerHTML=(g.log||[]).length?g.log.map(x=>`<div>• ${esc(x.text)}</div>`).join(''):'<div>Das Spiel hat begonnen.</div>';
  syncOccupyModal();
+ refreshContinentsModal();
 }
 function deploymentRemaining(){const g=gameRoom();return (g?.remaining||0)-Object.values(state.draftDeploy).reduce((a,b)=>a+b,0);}
 function draftTroops(n){
@@ -178,7 +238,7 @@ function draftTroops(n){
 }
 function resetDraft(){state.draftDeploy={};updateGameUI();}
 function victory(){const g=gameRoom(),win=g.winner,player=state.room.players?.[win];worldRoot.innerHTML=`${demoStrip()}<section class="panel victory-panel"><div style="font-size:62px">🏆</div><div class="overline">SPIEL BEENDET</div><h1>Weltherrschaft!</h1><div style="display:flex;justify-content:center;align-items:center;gap:12px">${flagPic(player?.flag)}<strong style="font-size:22px;color:${playerHex(win)}">${esc(player?.name||'Ein Spieler')}</strong></div><p class="sub">Alle 42 Territorien sind erobert. Glückwunsch zum Sieg!</p><button class="secondary" data-action="back-menu">↖ Zur Spielauswahl</button></section>`;}
-function render(){if(!gameRoom()||gameRoom().phase!=='occupy')syncOccupyModal();updateProfileButton();if(!state.room){home();return;}if(state.room.status==='lobby')lobby();else if(gameRoom()?.status==='finished')victory();else game();}
+function render(){if(!gameRoom()?.board||gameRoom()?.status==='finished'||state.room?.status!=='playing')closeContinentsModal();if(!gameRoom()||gameRoom().phase!=='occupy')syncOccupyModal();updateProfileButton();if(!state.room){home();return;}if(state.room.status==='lobby')lobby();else if(gameRoom()?.status==='finished')victory();else game();}
 function setQuery(code){history.replaceState(null,'',`${location.pathname}?room=${encodeURIComponent(code)}`);}
 function clearSession(){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='home';state.room=null;state.code='';state.me='';state.client=null;state.selection=null;state.target=null;state.lastTurnKey='';state.draftDeploy={};localStorage.removeItem('skala_world_room');history.replaceState(null,'',location.pathname);render();}
 function attach(code,client){if(state.unsubscribe){state.unsubscribe();state.unsubscribe=null;}state.mode='online';state.room=null;state.code=code;state.me=client.auth.currentUser.uid;state.client=client;
@@ -273,7 +333,7 @@ worldRoot.addEventListener('submit',e=>{const f=e.target;if(!['world-create','wo
 worldRoot.addEventListener('change',e=>{if(e.target.id==='demo-actor'){state.demoActor=e.target.value;state.selection=null;state.target=null;render();}});
 worldRoot.addEventListener('input',e=>{if(e.target.id==='occupy-slider'){state.moveAmount=Number(e.target.value);document.getElementById('left-amount').textContent=state.moveAmount;document.getElementById('enter-amount').textContent=gameRoom().pending.total-state.moveAmount;}if(e.target.id==='fortify-slider'){state.moveAmount=Number(e.target.value);document.getElementById('fortify-amount').textContent=state.moveAmount;}});
 worldRoot.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;const type=b.dataset.action;
- if(type==='demo'){demo();return;}if(type==='copy'){copyInvite();return;}
+ if(type==='demo'){demo();return;}if(type==='copy'){copyInvite();return;}if(type==='continents'){openContinentsModal();return;}
  if(type==='color'){guard(()=>pickColor(b.dataset.color));return;}
  if(type==='shuffle'){guard(shuffleLobby);return;}
  if(type==='start'){guard(startLobby);return;}
@@ -297,5 +357,5 @@ document.getElementById('profile-button').onclick=openProfile;
 modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-modal="close"]')){modal.hidden=true;return;}const f=e.target.closest('[data-flag]');if(!f)return;state.profileDraft.flag=f.dataset.flag;document.getElementById('prof-flag').innerHTML=flagPic(f.dataset.flag);document.getElementById('prof-country').textContent=FLAG_NAMES.get(f.dataset.flag);flagChoices();});
 modal.addEventListener('input',e=>{if(e.target.id==='prof-filter'){state.profileFilter=e.target.value;flagChoices();}if(e.target.id==='prof-name')document.getElementById('prof-label').textContent=e.target.value||'Spieler';});
 modal.addEventListener('submit',e=>{if(e.target.id==='prof-form'){e.preventDefault();guard(saveProfile);}});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!modal.hidden)modal.hidden=true;});
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!continentsModal.hidden){closeContinentsModal();document.getElementById('world-continents-button')?.focus();return;}if(!modal.hidden)modal.hidden=true;});
 render();restore();
