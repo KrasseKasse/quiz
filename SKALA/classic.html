@@ -66,6 +66,31 @@
 @media(max-width:1050px){.lobby-grid,.team-shell{grid-template-columns:1fr}.team-side{position:static}}
 @media(max-width:690px){.shell{padding:16px 14px 55px}.topbar{margin-bottom:34px}.topbar .tag{display:none}.profile-toggle .profile-name{max-width:85px}.profile-layer{padding:63px 9px 12px}.profile-popover{max-height:calc(100vh - 75px);padding:16px}.flag-picker{grid-template-columns:repeat(3,minmax(0,1fr))}.team-grid,.home-grid{grid-template-columns:1fr}.profile-head{gap:5px}}
 
+/* V3 language control and custom dialog */
+.skala-language-switch{display:inline-flex;align-items:center;gap:3px;padding:3px;border:1px solid #667392;border-radius:12px;background:#172038;white-space:nowrap;flex-shrink:0;vertical-align:middle}
+.skala-language-switch button{border:0;border-radius:8px;min-width:35px;min-height:32px;padding:4px 8px;color:#b8cbe7;background:transparent;font:800 12px 'DM Sans',sans-serif;cursor:pointer}
+.skala-language-switch button.active{color:#161b32;background:#8cdbca;box-shadow:0 2px 6px #0004}
+.skala-language-switch button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.skala-dialog-overlay{position:fixed;inset:0;z-index:3000;background:#070e20e8;display:grid;place-items:center;padding:18px;backdrop-filter:blur(7px)}
+.skala-dialog{width:min(450px,100%);background:linear-gradient(145deg,#30395f,#1d2641);border:1px solid #8191ba;box-shadow:0 24px 100px #000b;border-radius:23px;padding:26px;color:white;text-align:center}
+.skala-dialog-icon{font-size:30px;margin-bottom:8px}
+.skala-dialog h2{font:800 25px 'Space Grotesk',sans-serif;margin:7px 0 10px}
+.skala-dialog p{font:500 15px/1.6 'DM Sans',sans-serif;color:#d4dff5;overflow-wrap:anywhere}
+.skala-dialog-buttons{display:flex;gap:10px;margin-top:23px}
+.skala-dialog-buttons button{flex:1;cursor:pointer;border-radius:12px;border:1px solid #727ea3;background:#303b59;color:white;font:800 14px 'DM Sans',sans-serif;min-height:47px}
+.skala-dialog-buttons button.skala-dialog-ok{background:#83e0c3;color:#17283a;border-color:#bdfde9}
+.skala-dialog-buttons button:focus-visible{outline:2px solid white;outline-offset:2px}
+.occupy-card{text-align:center;border-color:#83e0c3;width:min(490px,100%)}
+.occupy-card h2{font:800 26px 'Space Grotesk',sans-serif;margin:5px 0 8px}
+.occupy-route{padding:12px;border-radius:13px;background:#101b33;border:1px solid #4b617d;margin:16px 0}
+.occupy-card input[type=range]{width:100%;accent-color:#83e0c3;cursor:pointer}
+.occupy-modal-readout{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.occupy-modal-readout>div{padding:13px 7px;border:1px solid #405576;background:#16213a;border-radius:13px}
+.occupy-modal-readout strong{display:block;font:800 30px 'Space Grotesk',sans-serif;color:#8de9ca}
+.occupy-modal-readout small{font-size:12px;color:#d3def6}
+.occupy-confirm{width:100%;min-height:49px}
+@media(max-width:620px){.skala-language-switch button{min-width:30px;padding:4px 5px}.portal-top,.world-header{gap:8px}.world-header nav{gap:5px}}
+
 </style>
 </head>
 <body>
@@ -169,7 +194,7 @@ function profilePanelMarkup(){
 function updateFlagPicker(){
   const holder=document.getElementById('flag-picker');if(!holder)return;
   const term=(state.profileSearch||'').trim().toLocaleLowerCase('de').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const results=FLAGS.filter(([c,n])=>`${n} ${c}`.toLocaleLowerCase('de').normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(term));
+  const results=FLAGS.filter(([c,n])=>`${n} ${c} ${window.SKALAI18N?.countryName(c)||''}`.toLocaleLowerCase('de').normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(term));
   holder.innerHTML=results.map(([code,name])=>`<button type="button" class="flag-option ${state.profileDraft.flag===code?'selected':''}" data-profile="select-flag" data-flag="${code}" aria-label="${esc(name)}" aria-pressed="${state.profileDraft.flag===code}">${flagPic(code)}<span class="flag-name">${esc(name)}</span></button>`).join('')||'<p class="sub" style="grid-column:1/-1">Keine Flagge gefunden.</p>';
 }
 function refreshProfileDraftPreview(){
@@ -411,7 +436,7 @@ async function advanceRound() {
 async function skipStuckRound() {
   const room=state.room, t=room?.turn;
   if(!isHost()||room?.status!=='playing'||!t||t.clue)return;
-  if(!confirm('Die aktuelle Runde wirklich ohne Punkte überspringen?'))return;
+  if(!await SKALAI18N.confirm('Die aktuelle Runde wirklich ohne Punkte überspringen?',{title:'Runde überspringen?',yes:'Runde überspringen',danger:true}))return;
   if(state.mode==='demo'){
     room.turn=makeTurn(room,t.index+1,t.categoryId);clearRoundUi();render();syncPrivateDemo();
   } else {
@@ -474,7 +499,7 @@ async function kickPlayer(uid) {
     if(teamPlayers(room,team).length<=2)throw new Error('In diesem Team müssen mindestens zwei Spieler bleiben. Beende zuerst das Spiel.');
   }
   const name=room.players[uid].name;
-  if(!confirm(`${name} wirklich aus diesem Raum kicken?`))return;
+  if(!await SKALAI18N.confirm(`${name} wirklich aus diesem Raum kicken?`,{title:"Spieler entfernen?",yes:"Entfernen",danger:true}))return;
   if(state.mode==='demo'){
     delete room.players[uid];
     if(state.demoActor===uid){state.demoActor=room.hostId;state.me=room.hostId;}
@@ -674,7 +699,7 @@ app.addEventListener('click',event=>{
   if(action==='rescue-round'){const id=state.room?.turn?.id;if(id)void rescueRound(id);return;}
   if(action==='retry-secret'){void syncPrivateOnline(true);return;}
   if(action==='skip-broken'){void guarded(skipStuckRound);return;}
-  if(action==='end'){if(confirm('Spiel wirklich beenden?'))void guarded(endGame);return;}
+  if(action==='end'){SKALAI18N.confirm('Spiel wirklich beenden?',{title:'Spiel beenden?',yes:'Spiel beenden',danger:true}).then(ok=>{if(ok)void guarded(endGame);});return;}
   if(action==='again'){void guarded(again);return;}
 });
 
@@ -712,5 +737,5 @@ async function copyProfileValue(value,message){
 render();void autoRestore();
 
   </script>
-</body>
+<script src="language.js?v=3"></script></body>
 </html>
