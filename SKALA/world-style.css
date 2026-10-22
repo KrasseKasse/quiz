@@ -42,3 +42,31 @@ button[data-action=deploy]:active{transform:scale(.98)}
 @media(max-width:620px){.skala-language-switch button{min-width:30px;padding:4px 5px}.portal-top,.world-header{gap:8px}.world-header nav{gap:5px}}
 
 .hero-world h1 span{margin-left:.12em}
+
+/* V3.2 — Read-only continent-progress modal */
+.continent-toggle{border-color:#6abda9!important;color:#aff8e3!important;background:#22514755!important;white-space:nowrap}
+.continent-toggle:hover,.continent-toggle:focus-visible{background:#32796188!important}
+.continents-dialog{width:min(800px,100%);padding:25px;max-height:min(88vh,920px);overflow:auto}
+.continents-dialog .modal-head{gap:15px;align-items:start}
+.continents-dialog .modal-head h2{font-size:27px;margin-top:7px}
+.continent-intro{margin:5px 0 17px}
+.continent-intro strong{color:#f7f8ff}
+.continents-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.continent-card{border:1px solid #435575;border-radius:15px;background:#131d35;padding:15px;min-width:0}
+.continent-card.continent-complete{border-color:#75dcbc;background:linear-gradient(130deg,#183a3d,#162840)}
+.continent-card-top,.continent-card-middle{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.continent-name{display:flex;gap:8px;align-items:center;min-width:0}
+.continent-name strong{font:800 17px 'Space Grotesk',sans-serif;line-height:1.3}
+.continent-bonus{font:800 22px 'Space Grotesk',sans-serif;color:#9ef0d6;white-space:nowrap}
+.continent-bonus small{font:600 11px 'DM Sans',sans-serif;color:#c6f1e3}
+.continent-card-middle{font-size:12px;color:#cad6eb;margin:12px 0 9px}
+.continent-status{font-size:11px;text-align:right;color:#aebbd2}
+.continent-status.secured{color:#95f2d4;font-weight:800}
+.continent-progress{height:9px;overflow:hidden;border-radius:10px;background:#37435f;border:1px solid #405071}
+.continent-progress>span{height:100%;display:block;border-radius:10px;background:linear-gradient(90deg,#629eeb,#81e2c2);transition:width .2s ease}
+.continent-complete .continent-progress>span{background:#8ce9c4}
+.continent-total{display:flex;align-items:center;justify-content:space-between;gap:15px;border-radius:12px;background:#203d44;border:1px solid #548e87;padding:15px;margin-top:15px}
+.continent-total span{font-size:13px;color:#daf6ed}
+.continent-total strong{font:800 23px 'Space Grotesk',sans-serif;color:#9bf3d7;white-space:nowrap}
+.continent-footnote{margin:12px 0 0}
+@media(max-width:640px){.continents-dialog{padding:18px;max-height:92vh}.continents-grid{grid-template-columns:1fr}.continent-card{padding:12px}.continent-total{align-items:start;flex-direction:column;gap:5px}}
