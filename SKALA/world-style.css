@@ -70,3 +70,19 @@ button[data-action=deploy]:active{transform:scale(.98)}
 .continent-total strong{font:800 23px 'Space Grotesk',sans-serif;color:#9bf3d7;white-space:nowrap}
 .continent-footnote{margin:12px 0 0}
 @media(max-width:640px){.continents-dialog{padding:18px;max-height:92vh}.continents-grid{grid-template-columns:1fr}.continent-card{padding:12px}.continent-total{align-items:start;flex-direction:column;gap:5px}}
+
+/* V3.3 — Every territory required for each continent bonus, with live ownership */
+.continents-dialog{width:min(945px,100%)}
+.continent-card{display:flex;flex-direction:column}
+.continent-list-heading{font-size:11px;letter-spacing:.03em;text-transform:uppercase;font-weight:800;color:#b8c9df;margin:15px 0 9px}
+.continent-territory-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.continent-territory{display:flex;align-items:center;gap:7px;min-width:0;min-height:33px;padding:6px 7px;border:1px solid #46526c;border-radius:8px;background:#1e2a41;color:#f0f3ff;font-size:12px}
+.continent-territory.owned{background:#1e3d38;border-color:#3d7e70}
+.continent-territory.missing{background:#343044;border-color:#6a5366}
+.continent-territory-symbol{font-size:14px;font-weight:900;flex:none;color:#ffc982}
+.continent-territory.owned .continent-territory-symbol{color:#8ce9c4}
+.continent-territory-name{min-width:0;flex:1;overflow-wrap:anywhere;font-weight:700;line-height:1.2}
+.continent-territory-state{flex:none;color:#f0c7a8;font-size:10px;font-weight:700}
+.continent-territory.owned .continent-territory-state{color:#9deacb}
+@media(max-width:900px){.continent-territory-list{grid-template-columns:1fr}}
+@media(max-width:640px){.continents-dialog{width:min(560px,100%)}}
